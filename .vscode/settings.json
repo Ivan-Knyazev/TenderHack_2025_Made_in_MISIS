@@ -1,6 +1,6 @@
 {
     "postman.settings.dotenv-detection-notification-visibility": false,
     "flake8.args": [
-        "--max-line-length=150"
+        "--max-line-length=170"
     ]
 }

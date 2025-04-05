@@ -29,7 +29,7 @@ class QueryRepository:
 
             # Main request to ML - generate answer
             url_ml_query = ML_URL + "query/"
-            # print(url_ml_query, new_query.dict())
+            print("Go to ML:", url_ml_query)
 
             headers = {'Content-Type': 'application/json'}
             response = requests.post(
@@ -45,11 +45,19 @@ class QueryRepository:
 
                 # print(soup.find('think'))
 
+                think, theme, answer = "", "", ""
+                if soup.find('think') is not None:
+                    think = soup.find('think').text
+                    theme = soup.find('topic').text
+                    answer = soup.find('answer').text
+
                 response_splitted = ResponseSplitted(
-                    think=soup.find('think').text, theme=soup.find('topic').text, answer=soup.find('answer').text)
+                    think=think, theme=theme, answer=answer)
+
+                print(response_data_from_ml)
 
                 # create result data for DB
-                response = ResponseToDB(
+                response_to_db = ResponseToDB(
                     human_handoff=response_data_from_ml.human_handoff,
                     conversation_id=response_data_from_ml.conversation_id,
                     source_documents=response_data_from_ml.source_documents,
@@ -69,11 +77,12 @@ class QueryRepository:
                 url_ml_category, data=json.dumps(new_query.dict()), headers=headers)
             if response.status_code == 200:
                 json_data = response.json()
-                print("Запрос на ML успешно отправлен:", json_data)
+                print(
+                    f"Запрос на ML успешно отправлен на {url_ml_category} и получен ответ:", json_data)
                 category = json_data['category']
 
                 data = QueryDB(
-                    response=response,
+                    response=response_to_db,
                     category=category,
                     user_id=query_input.user_id,
                     chat_id=query_input.chat_id,
