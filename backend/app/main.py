@@ -1,8 +1,10 @@
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 
 from app.db.database import connect_db, close_db
-from app.controllers import auth_controller, users_controller  # Импорт роутеров
+# Импорт роутеров
+from app.controllers import auth_controller, users_controller, query_controller
 
 
 @asynccontextmanager
@@ -22,10 +24,20 @@ app = FastAPI(
     lifespan=lifespan  # Используем новый механизм lifespan
 )
 
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=False,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
 # Подключение роутеров
 api_prefix = "/api/v1"
 app.include_router(auth_controller.router, prefix=api_prefix)
 app.include_router(users_controller.router, prefix=api_prefix)
+app.include_router(query_controller.router, prefix=api_prefix)
 
 
 @app.get("/", tags=["Root (test)"])

@@ -9,3 +9,5 @@ pydantic-settings
 email-validator
 pymongo
 python-dotenv
+beautifulsoup4
+lxml
