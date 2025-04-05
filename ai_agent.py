@@ -17,6 +17,21 @@ from sentence_transformers import SentenceTransformer
 from sklearn.feature_extraction.text import TfidfVectorizer
 import re
 from langchain.graphs import Neo4jGraph
+from transformers import T5ForConditionalGeneration, T5Tokenizer
+
+
+model_t5 = T5ForConditionalGeneration.from_pretrained("UrukHan/t5-russian-spell")
+tokenizer_t5 = T5Tokenizer.from_pretrained("UrukHan/t5-russian-spell")
+
+
+def correct_text(text):
+    input_ids = tokenizer_t5(
+        f"Spell correct: {text}", 
+        return_tensors="pt"
+    ).input_ids
+    outputs = model_t5.generate(input_ids, max_length=512)
+    return tokenizer_t5.decode(outputs[0], skip_special_tokens=True)
+
 
 # Функции для извлечения сущностей и связей
 def extract_entities(text):
@@ -391,7 +406,7 @@ class GraphEnhancedRetriever:
 class SupportAgent:
     def __init__(self, 
                  kb_path: str = "./vector_store", 
-                 ollama_base_url: str = "http://localhost:11434",
+                 ollama_base_url: str = "http://46.227.68.167:22077/",
                  model_name: str = "deepseek-r1:7b",
                  use_semantic_chunking: bool = True,
                  use_hybrid_search: bool = True,
@@ -498,11 +513,15 @@ class SupportAgent:
         
         # Setup system prompt
         self.system_prompt = """Вы - полезный помощник службы поддержки. 
-Отвечайте на вопросы пользователя на основе информации, предоставленной в извлеченных документах.
+Отвечайте на вопросы пользователя на основе информации, предоставленной в извлеченных документах. Есть три типа ответа:
+ответ на термин 
+ответ по проблеме   
+ответ по работе пользователя
+
 Если вы не знаете ответ или не можете найти его в извлеченных документах, честно скажите об этом и предложите перевести диалог на оператора-человека.
 Всегда будьте вежливы, профессиональны и лаконичны.
-Отвечайте пользователю ТОЛЬКО на русском языке, независимо от языка запроса. Если нету данных в документах, скажите, что нет информации и перенаправь на оператора, иначе отвечай до тех пор пока не попросят перевести на оператора.
-В начале задай тему диалога в таком формате <topic>Тема диалога</topic>, а ответ модели в <answer>Ответ модели</answer>.
+Отвечайте пользователю ТОЛЬКО на русском языке, независимо от языка запроса.
+В начале задай тему диалога в таком формате <topic>Тема диалога</topic>, а ответ модели в <answer>Ответ модели</answer>, обязательно соблюдай формат.
 """
         
         # Set up the chain
@@ -650,7 +669,7 @@ class SupportAgent:
                     chunk_scores = list(zip(chunked_docs, similarities))
                     chunk_scores.sort(key=lambda x: x[1], reverse=True)
                     
-                    # Берем топ-5 наиболее релевантных частей
+                    # Берем топ-5 наиболее релевантных частей   
                     top_docs = [(doc, score) for doc, score in chunk_scores[:5]]
             except Exception as e:
                 print(f"Ошибка при семантическом разбиении: {str(e)}")

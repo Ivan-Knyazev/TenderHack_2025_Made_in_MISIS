@@ -304,7 +304,7 @@ async def query(request: QueryRequest):
     agent.memory = conversations[conversation_id]
     
     # Process the query
-    result = agent.process_message(request.query)
+    result = agent.process_message(ai_agent.correct_text(request.query))
     
     # Save updated conversation state
     conversations[conversation_id] = agent.memory

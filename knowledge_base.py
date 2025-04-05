@@ -9,7 +9,7 @@ from langchain_ollama import OllamaEmbeddings
 from langchain.schema import Document
 
 class KnowledgeBase:
-    def __init__(self, ollama_base_url: str = "http://localhost:11434"):
+    def __init__(self, ollama_base_url: str = "http://46.227.68.167:22077/"):
         """Initialize the knowledge base with Ollama embeddings."""
         self.embeddings = OllamaEmbeddings(
             model="deepseek-r1:7b",
@@ -17,8 +17,8 @@ class KnowledgeBase:
         )
         self.vector_store = None
         self.text_splitter = RecursiveCharacterTextSplitter(
-            chunk_size=1500,
-            chunk_overlap=300
+            chunk_size=1000,
+            chunk_overlap=200
         )
 
     def load_and_process_documents(self, 
