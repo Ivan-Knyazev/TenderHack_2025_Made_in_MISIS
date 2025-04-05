@@ -1,0 +1,70 @@
+name: 'tenderhack-ai-assistant'
+
+volumes:
+  db-data:
+
+
+networks:
+  db-network:
+    driver: bridge
+
+services:
+  mongo:
+    container_name: tenderhack-mongodb
+    image: mongo
+    env_file:
+      - .env
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USER}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD}
+      MONGO_INITDB_DATABASE: ${MONGO_ROOT_DATABASE}
+    restart: unless-stopped
+    volumes:
+      - db-data:/data/db
+    ports:
+      - ${MONGO_PORT}:27017
+    networks:
+      - db-network
+
+  mongo-express:
+    container_name: tenderhack-mongodb-express
+    image: mongo-express
+    env_file:
+      - .env
+    environment:
+      ME_CONFIG_MONGODB_SERVER: mongo
+      ME_CONFIG_MONGODB_PORT: ${MONGO_PORT}
+      ME_CONFIG_MONGODB_ENABLE_ADMIN: false
+      ME_CONFIG_MONGODB_AUTH_DATABASE: admin
+      ME_CONFIG_MONGODB_AUTH_USERNAME: ${MONGO_ROOT_USER}
+      ME_CONFIG_MONGODB_AUTH_PASSWORD: ${MONGO_ROOT_PASSWORD}
+      ME_CONFIG_BASICAUTH_USERNAME: ${MONGOEXPRESS_LOGIN}
+      ME_CONFIG_BASICAUTH_PASSWORD: ${MONGOEXPRESS_PASSWORD}
+      # ME_CONFIG_MONGODB_ADMINUSERNAME: root
+      # ME_CONFIG_MONGODB_ADMINPASSWORD: example
+      # ME_CONFIG_MONGODB_URL: mongodb://root:example@mongo:27017/
+      # ME_CONFIG_BASICAUTH: false
+    restart: unless-stopped
+    ports:
+      - ${MONGO_EXPRESS_PORT}:8081
+    networks:
+      - db-network
+
+  backend:
+    container_name: tenderhack-backend
+    build:
+      context: .
+      dockerfile: Dockerfile
+    depends_on:
+      - mongo
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      - "POSTGRES_HOST=postgresql"
+      - "TZ=Europe/Moscow"
+    #    command: "uvicorn backend.main:app --port ${BACKEND_PORT} --host 0.0.0.0"
+    # ports:
+    #   - 8000:8000
+    networks:
+      - db-network
