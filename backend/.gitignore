@@ -1,7 +1,7 @@
 # ENV
 .env
 # VENV
-db-venv
+venv
 # IDE
 .vscode
 # Python
