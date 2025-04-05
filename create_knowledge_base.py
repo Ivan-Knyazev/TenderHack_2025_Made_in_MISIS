@@ -10,7 +10,7 @@ def main():
         print("Создана директория ./knowledge/")
     
     # Проверка существования демонстрационных файлов
-    knowledge_files = []
+    knowledge_files = ["faq.txt", "about_service.txt", "pricing.txt", "installation_guide.txt", "features.txt"]
     missing_files = []
     
     for file in knowledge_files:

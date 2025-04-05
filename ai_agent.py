@@ -39,6 +39,9 @@ class SupportAgent:
         # Initialize knowledge base
         self.kb = KnowledgeBase(ollama_base_url=ollama_base_url)
         
+        # Initialize source documents storage
+        self.source_documents = []
+        
         # Load vector store if it exists
         if os.path.exists(kb_path):
             self.kb.load_vector_store(kb_path)
@@ -128,6 +131,9 @@ class SupportAgent:
         all_docs.sort(key=lambda x: x[1])
         top_docs = all_docs[:5]
         
+        # Store the source documents for later reference
+        self.source_documents = [doc for doc, _ in top_docs]
+        
         # Format the context from documents
         context_texts = []
         for i, (doc, _) in enumerate(top_docs, 1):
@@ -183,6 +189,9 @@ class SupportAgent:
         Returns:
             Dict containing the response and metadata
         """
+        # Reset source documents for this new query
+        self.source_documents = []
+        
         if self.human_support_requested:
             return {
                 "response": "Ваш запрос поставлен в очередь для обработки оператором. Специалист поддержки свяжется с вами в ближайшее время.",
@@ -209,10 +218,19 @@ class SupportAgent:
                 "source_documents": []
             }
         
+        # Prepare source info for return
+        sources = []
+        for doc in self.source_documents:
+            source = doc.metadata.get("source", "Неизвестный источник")
+            sources.append({
+                "content": doc.page_content,
+                "source": source
+            })
+        
         return {
             "response": response,
             "human_handoff": False,
-            "source_documents": []  # In a real implementation, you'd return the actual sources
+            "source_documents": sources
         }
     
     def reset_conversation(self):

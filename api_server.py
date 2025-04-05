@@ -62,7 +62,7 @@ class QueryResponse(BaseModel):
     response: str
     human_handoff: bool = False
     conversation_id: str
-    source_documents: List[str] = []
+    source_documents: List[Dict[str, Any]] = []
 
 def rebuild_knowledge_base(rebuild_all: bool = True, pdf_files: List[str] = None):
     """
@@ -264,13 +264,26 @@ async def query(request: QueryRequest):
     agent.memory = conversations[conversation_id]
     
     # Process the query
-    answer, sources = agent.process_message(request.query)
+    result = agent.process_message(request.query)
     
     # Save updated conversation state
     conversations[conversation_id] = agent.memory
     
-    # Check if human handoff is needed (can be implemented with custom logic)
-    human_handoff = False
+    # Extract data from the result
+    answer = result["response"]
+    human_handoff = result.get("human_handoff", False)
+    
+    # Convert source documents if available
+    sources = []
+    if "source_documents" in result and result["source_documents"]:
+        for doc in result["source_documents"]:
+            if isinstance(doc, dict):
+                sources.append(doc)
+            elif hasattr(doc, 'page_content') and hasattr(doc, 'metadata'):
+                sources.append({
+                    "content": doc.page_content,
+                    "source": doc.metadata.get("source", "Неизвестно")
+                })
     
     return QueryResponse(
         response=answer,
