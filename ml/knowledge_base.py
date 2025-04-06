@@ -9,10 +9,10 @@ from langchain_ollama import OllamaEmbeddings
 from langchain.schema import Document
 
 class KnowledgeBase:
-    def __init__(self, ollama_base_url: str = "http://46.227.68.167:22077/"):
+    def __init__(self, ollama_base_url: str = "http://localhost:11434/"):
         """Initialize the knowledge base with Ollama embeddings."""
         self.embeddings = OllamaEmbeddings(
-            model="deepseek-r1:7b",
+            model="deepseek-r1:1.5b",
             base_url=ollama_base_url
         )
         self.vector_store = None
