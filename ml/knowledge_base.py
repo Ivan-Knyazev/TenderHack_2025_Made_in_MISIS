@@ -9,16 +9,16 @@ from langchain_ollama import OllamaEmbeddings
 from langchain.schema import Document
 
 class KnowledgeBase:
-    def __init__(self, ollama_base_url: str = "http://localhost:11434/"):
+    def __init__(self, ollama_base_url: str = "http://46.227.68.167:22065/"):
         """Initialize the knowledge base with Ollama embeddings."""
         self.embeddings = OllamaEmbeddings(
-            model="deepseek-r1:1.5b",
+            model="qwen2.5:14b",
             base_url=ollama_base_url
         )
         self.vector_store = None
         self.text_splitter = RecursiveCharacterTextSplitter(
-            chunk_size=1000,
-            chunk_overlap=200
+            chunk_size=10000,
+            chunk_overlap=2000
         )
 
     def load_and_process_documents(self, 
@@ -80,8 +80,16 @@ class KnowledgeBase:
         # Split documents into chunks
         if documents:
             chunked_docs = self.text_splitter.split_documents(documents)
+
+            # Добавляем уникальные doc_id каждому чанку
+            for i, doc in enumerate(chunked_docs):
+                doc.metadata["doc_id"] = f"doc_{i}"
+                doc.metadata["original_index"] = i  # сохраняем исходный порядок
+
+
             print(f"Загружено {len(documents)} документов, разбито на {len(chunked_docs)} чанков")
             return chunked_docs
+
         
         return []
 
@@ -218,6 +226,83 @@ class KnowledgeBase:
             raise ValueError("Vector store not initialized. Create or load a vector store first.")
             
         return self.vector_store.similarity_search_with_score(query, k=k)
+    
+    def similarity_search_with_context(self, query: str, k: int = 4, context_window: int = 3) -> List[Document]:
+            """
+            Perform similarity search and return matching chunks with surrounding context.
+            
+            Args:
+                query: The search query
+                k: Number of top results to return
+                context_window: Number of surrounding chunks to include before and after each match
+            
+            Returns:
+                List of Document objects with surrounding context
+            """
+            if not self.vector_store:
+                raise ValueError("Vector store not initialized.")
+                
+            results = self.vector_store.similarity_search_with_score(query, k=k)
+            all_documents = self.vector_store.docstore._dict  # access to all chunks
+
+            doc_keys = list(all_documents.keys())
+
+            matched_indices = []
+            for doc, _ in results:
+                doc_id = doc.metadata.get("doc_id")
+                if doc_id and doc_id in doc_keys:
+                    matched_indices.append(doc_keys.index(doc_id))
+
+            final_indices = set()
+            for idx in matched_indices:
+                for offset in range(-context_window, context_window + 1):
+                    neighbor_idx = idx + offset
+                    if 0 <= neighbor_idx < len(doc_keys):
+                        final_indices.add(neighbor_idx)
+
+            return [all_documents[doc_keys[i]] for i in sorted(final_indices)]
+    
+    def similarity_search_with_context(self, query: str, k: int = 4, context_window: int = 10) -> List[Document]:
+        """
+        Perform similarity search and return matching chunks with surrounding context.
+
+        Args:
+            query: The search query
+            k: Number of top results to return
+            context_window: Number of surrounding chunks to include before and after each match
+
+        Returns:
+            List of Document objects with surrounding context, in proper order
+        """
+        if not self.vector_store:
+            raise ValueError("Vector store not initialized.")
+
+        # Основной поиск
+        results = self.vector_store.similarity_search_with_score(query, k=k)
+
+        # Все чанки, отсортированные по original_index
+        all_documents = list(self.vector_store.docstore._dict.values())
+        all_documents.sort(key=lambda d: d.metadata.get("original_index", 0))
+
+        # Получаем индексы совпавших чанков
+        matched_indices = []
+        for doc, _ in results:
+            idx = doc.metadata.get("original_index")
+            if idx is not None:
+                matched_indices.append(idx)
+
+        # Собираем индексы с учетом контекста
+        final_indices = set()
+        for idx in matched_indices:
+            for offset in range(-context_window, context_window + 1):
+                neighbor_idx = idx + offset
+                if 0 <= neighbor_idx < len(all_documents):
+                    final_indices.add(neighbor_idx)
+
+        # Возвращаем чанки в правильном порядке
+        return [all_documents[i] for i in sorted(final_indices)]
+
+
 
 # Example usage
 if __name__ == "__main__":
