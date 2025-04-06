@@ -57,5 +57,8 @@ class QueryDB(QueryInput):
     # )
 
 
+class QueryDBUpdated(QueryDB):
+    mark: int
+
 # class Category(BaseModel):
 #     category: str

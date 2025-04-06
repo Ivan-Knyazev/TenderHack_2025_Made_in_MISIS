@@ -1,7 +1,8 @@
 import aiohttp
+from typing import Tuple, Dict, Any
 
 
-async def make_request(url: str, headers: dict, data: dict):
+async def make_request(url: str, headers: Dict[str, str], data: Dict[str, str]) -> Tuple[int, Dict[str, Any]]:
     # url = "http://localhost:8000/query"
     # headers = {"Content-Type": "application/json"}
     # data = {
@@ -11,7 +12,10 @@ async def make_request(url: str, headers: dict, data: dict):
 
     async with aiohttp.ClientSession() as session:
         async with session.post(url, headers=headers, json=data) as response:
-            # print("Status Code:", response.status)
+            status_code = response.status
             response_json = await response.json()
-            # print("Response JSON:", response_json)
-            return response_json
+
+            # print("TEST Status Code:", status_code)
+            # print("TEST Response JSON:", response_json)
+
+            return status_code, response_json

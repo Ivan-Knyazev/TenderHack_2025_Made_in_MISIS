@@ -16,7 +16,7 @@ async def generate_query(query_input: QueryInput, query_service: QueryServiceDep
     try:
         created_query = await query_service.create_query(query_input)
         # created_query.id = str(created_query.id)
-        print(created_query)
+        print("[INFO] [DATA] - Answer to /generate", created_query)
         # Преобразуем UserInDB в UserPublic для ответа
         return QueryDB.model_validate(created_query)
     except HTTPException as http_exc:

@@ -6,10 +6,10 @@ from motor.motor_asyncio import AsyncIOMotorDatabase, AsyncIOMotorCollection
 from app.core.config import ML_URL
 from app.models.query import QueryInput, ResponseFromML, ResponseSplitted, ResponseToDB, QueryDB, QueryToML
 from bs4 import BeautifulSoup
-import httpx
 import time
-import requests
-import json
+# import requests
+# import json
+from app.utils.request import make_request
 
 
 class QueryRepository:
@@ -33,11 +33,19 @@ class QueryRepository:
                 print("Go to ML:", url_ml_query)
 
                 headers = {'Content-Type': 'application/json'}
-                response = requests.post(
-                    url_ml_query, data=json.dumps(new_query.dict()), headers=headers)
-                if response.status_code == 200:
-                    json_data = response.json()
-                    print("Запрос на ML успешно отправлен и получен ответ")
+                # response = requests.post(
+                #     url_ml_query, data=json.dumps(new_query.dict()), headers=headers)
+
+                start_request = int(time.time())
+                status_code, json_data = await make_request(url=url_ml_query, headers=headers, data=new_query.dict())
+                stop_request = int(time.time())
+                print("[INFO] Запрос был вывполнен за",
+                      (stop_request-start_request), "секунд")
+
+                if status_code == 200:
+                    # json_data = response.json()
+                    print(
+                        "[INFO] Запрос на ML успешно отправлен и получен ответ (generate answer)")
                     response_data_from_ml = ResponseFromML.parse_obj(json_data)
 
                     # parse lxml
@@ -49,13 +57,13 @@ class QueryRepository:
                     think, theme, answer = "", "", ""
                     if soup.find('think') is not None:
                         think = soup.find('think').text
+                    if soup.find('topic') is not None:
                         theme = soup.find('topic').text
+                    if soup.find('answer') is not None:
                         answer = soup.find('answer').text
 
                     response_splitted = ResponseSplitted(
                         think=think, theme=theme, answer=answer)
-
-                    print(response_data_from_ml)
 
                     # create result data for DB
                     response_to_db = ResponseToDB(
@@ -66,16 +74,16 @@ class QueryRepository:
                         response=response_splitted,
                     )
                 else:
-                    print("Ошибка отправки запроса на ML:",
-                          response.status_code, response.text)
+                    print("[ERROR] Ошибка отправки запроса на ML:",
+                          status_code, json_data)
             except Exception as e:
                 print(f"ERROR in Main request to ML - generate answer: {e}")
                 response_to_db = ResponseToDB(
-                    human_handoff="",
+                    human_handoff=False,
                     conversation_id="",
-                    source_documents="",
-                    used_files="",
-                    response="",
+                    source_documents=[],
+                    used_files=[],
+                    response=response_splitted,
                 )
                 # raise e
 
@@ -85,15 +93,20 @@ class QueryRepository:
                 new_query.conversation_id = None
 
                 headers = {'Content-Type': 'application/json'}
-                response = requests.post(
-                    url_ml_category, data=json.dumps(new_query.dict()), headers=headers)
-                if response.status_code == 200:
-                    json_data = response.json()
+                # response = requests.post(
+                #     url_ml_category, data=json.dumps(new_query.dict()), headers=headers)
+
+                status_code, json_data = await make_request(url=url_ml_category, headers=headers, data=new_query.dict())
+
+                if status_code == 200:
+                    # json_data = response.json()
+                    # print(
+                    #     f"Запрос на ML успешно отправлен на {url_ml_category} и получен ответ:", json_data)
                     print(
-                        f"Запрос на ML успешно отправлен на {url_ml_category} и получен ответ:", json_data)
+                        "[INFO] Запрос на ML успешно отправлен и получен ответ (generate answer)")
                     category = json_data['category']
                 else:
-                    print("Ошибка отправки запроса на ML:",
+                    print("[INFO] Ошибка отправки запроса на ML:",
                           response.status_code, response.text)
             except Exception as e:
                 print(f"ERROR in Request to ML - generate category: {e}")
