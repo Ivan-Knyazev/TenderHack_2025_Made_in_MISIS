@@ -506,8 +506,8 @@ async def upload_files(
         }
     )
 
-# @app.post("/query", response_model=LegacyQueryResponse)
-@app.post("/api/v1/query", response_model=QueryResponse)
+@app.post("/query", response_model=QueryResponse)
+# @app.post("/api/v1/query", response_model=QueryResponse)
 async def handle_query(request: QueryRequest):
     """Совмещенная логика обработки запросов"""
     start_time = time.time()
@@ -561,8 +561,8 @@ async def handle_query(request: QueryRequest):
     # return LegacyQueryResponse(**base_response)
     return QueryResponse(**base_response)
 
-# @app.post("/topic")
-@app.post("/api/v1/topic", response_model=TopicResponse)
+@app.post("/topic", response_model=TopicResponse)
+# @app.post("/api/v1/topic", response_model=TopicResponse)
 async def predict_topic_handler(query_: QueryRequest):
     """Совмещенный обработчик тем"""
     try:
