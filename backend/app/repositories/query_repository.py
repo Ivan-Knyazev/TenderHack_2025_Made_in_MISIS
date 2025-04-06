@@ -27,78 +27,93 @@ class QueryRepository:
             new_query = QueryToML(
                 query=query_input.query, conversation_id="123e4567-e89b-12d3-a456-426614174000")
 
-            # Main request to ML - generate answer
-            url_ml_query = ML_URL + "query/"
-            print("Go to ML:", url_ml_query)
+            try:
+                # Main request to ML - generate answer
+                url_ml_query = ML_URL + "query/"
+                print("Go to ML:", url_ml_query)
 
-            headers = {'Content-Type': 'application/json'}
-            response = requests.post(
-                url_ml_query, data=json.dumps(new_query.dict()), headers=headers)
-            if response.status_code == 200:
-                json_data = response.json()
-                print("Запрос на ML успешно отправлен и получен ответ")
-                response_data_from_ml = ResponseFromML.parse_obj(json_data)
+                headers = {'Content-Type': 'application/json'}
+                response = requests.post(
+                    url_ml_query, data=json.dumps(new_query.dict()), headers=headers)
+                if response.status_code == 200:
+                    json_data = response.json()
+                    print("Запрос на ML успешно отправлен и получен ответ")
+                    response_data_from_ml = ResponseFromML.parse_obj(json_data)
 
-                # parse lxml
-                html_string = response_data_from_ml.response
-                soup = BeautifulSoup(html_string, 'lxml')
+                    # parse lxml
+                    html_string = response_data_from_ml.response
+                    soup = BeautifulSoup(html_string, 'lxml')
 
-                # print(soup.find('think'))
+                    # print(soup.find('think'))
 
-                think, theme, answer = "", "", ""
-                if soup.find('think') is not None:
-                    think = soup.find('think').text
-                    theme = soup.find('topic').text
-                    answer = soup.find('answer').text
+                    think, theme, answer = "", "", ""
+                    if soup.find('think') is not None:
+                        think = soup.find('think').text
+                        theme = soup.find('topic').text
+                        answer = soup.find('answer').text
 
-                response_splitted = ResponseSplitted(
-                    think=think, theme=theme, answer=answer)
+                    response_splitted = ResponseSplitted(
+                        think=think, theme=theme, answer=answer)
 
-                print(response_data_from_ml)
+                    print(response_data_from_ml)
 
-                # create result data for DB
+                    # create result data for DB
+                    response_to_db = ResponseToDB(
+                        human_handoff=response_data_from_ml.human_handoff,
+                        conversation_id=response_data_from_ml.conversation_id,
+                        source_documents=response_data_from_ml.source_documents,
+                        used_files=response_data_from_ml.used_files,
+                        response=response_splitted,
+                    )
+                else:
+                    print("Ошибка отправки запроса на ML:",
+                          response.status_code, response.text)
+            except Exception as e:
+                print(f"ERROR in Main request to ML - generate answer: {e}")
                 response_to_db = ResponseToDB(
-                    human_handoff=response_data_from_ml.human_handoff,
-                    conversation_id=response_data_from_ml.conversation_id,
-                    source_documents=response_data_from_ml.source_documents,
-                    used_files=response_data_from_ml.used_files,
-                    response=response_splitted,
+                    human_handoff="",
+                    conversation_id="",
+                    source_documents="",
+                    used_files="",
+                    response="",
                 )
-            else:
-                print("Ошибка отправки запроса на ML:",
-                      response.status_code, response.text)
+                # raise e
 
-            # Request to ML - generate category
-            url_ml_category = ML_URL + "topic/"
-            new_query.conversation_id = None
+            try:
+                # Request to ML - generate category
+                url_ml_category = ML_URL + "topic/"
+                new_query.conversation_id = None
 
-            headers = {'Content-Type': 'application/json'}
-            response = requests.post(
-                url_ml_category, data=json.dumps(new_query.dict()), headers=headers)
-            if response.status_code == 200:
-                json_data = response.json()
-                print(
-                    f"Запрос на ML успешно отправлен на {url_ml_category} и получен ответ:", json_data)
-                category = json_data['category']
-
-                data = QueryDB(
-                    response=response_to_db,
-                    category=category,
-                    user_id=query_input.user_id,
-                    chat_id=query_input.chat_id,
-                    query=query_input.query,
-                    time=unix_time,
-                )
-            else:
-                print("Ошибка отправки запроса на ML:",
-                      response.status_code, response.text)
+                headers = {'Content-Type': 'application/json'}
+                response = requests.post(
+                    url_ml_category, data=json.dumps(new_query.dict()), headers=headers)
+                if response.status_code == 200:
+                    json_data = response.json()
+                    print(
+                        f"Запрос на ML успешно отправлен на {url_ml_category} и получен ответ:", json_data)
+                    category = json_data['category']
+                else:
+                    print("Ошибка отправки запроса на ML:",
+                          response.status_code, response.text)
+            except Exception as e:
+                print(f"ERROR in Request to ML - generate category: {e}")
+                category = ""
+                # raise e
 
             # For test work with DB
-            data = QueryDB(user_id=query_input.user_id, chat_id=query_input.chat_id,
-                           query=query_input.query, time=unix_time)
+            # data = QueryDB(user_id=query_input.user_id, chat_id=query_input.chat_id,
+            #                query=query_input.query, time=unix_time)
+            # print(data.dict())
 
-            print(data.dict())
-
+            # Write to DB
+            data = QueryDB(
+                response=response_to_db,
+                category=category,
+                user_id=query_input.user_id,
+                chat_id=query_input.chat_id,
+                query=query_input.query,
+                time=unix_time,
+            )
             insert_result = await self.collection.insert_one(data.dict())
             # Получаем созданный документ, чтобы вернуть его с _id
             created_doc = await self.collection.find_one({"_id": insert_result.inserted_id})

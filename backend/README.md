@@ -1,5 +1,13 @@
 # Backend
 
+## Start FastAPI application
+
+- Start from `/backend` folder
+
+```
+uvicorn app.main:app --reload --port 8001 --host 0.0.0.0
+```
+
 ## Specification for REST API:
 
 - Change `backendhost` to really host!

@@ -2,6 +2,7 @@
 .env
 # VENV
 venv
+.venv
 # IDE
 .vscode
 # Python
