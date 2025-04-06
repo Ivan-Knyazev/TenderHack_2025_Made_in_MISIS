@@ -468,24 +468,21 @@ class QueryRequest(BaseModel):
     conversation_id: Optional[str] = None
     reset_conversation: bool = False
 
-class LegacyQueryResponse(BaseModel):
+class QueryResponse(BaseModel):
     response: str
     human_handoff: bool = False
     conversation_id: str
-    source_documents: List[Dict[str, Any]] = []
-    used_files: List[str] = []
-
-class ImprovedQueryResponse(LegacyQueryResponse):
-    sources: List[Dict[str, Any]] = []
+    sources: List[Dict] = []
     processing_time: float
+    error: Optional[str] = None
 
 class TopicResponse(BaseModel):
     category: str
     confidence: Optional[float] = None  # Новое поле
 
 # Эндпоинты (сохраняем оригинальные + добавляем новые)
-@app.post("/upload", response_class=JSONResponse)
-@app.post("/api/upload", response_class=JSONResponse)
+# @app.post("/upload", response_class=JSONResponse)
+@app.post("/api/v1/upload", response_class=JSONResponse)
 async def upload_files(
     files: List[UploadFile] = File(...),
     rebuild_index: bool = Form(True),
@@ -509,8 +506,8 @@ async def upload_files(
         }
     )
 
-@app.post("/query", response_model=LegacyQueryResponse)
-@app.post("/api/query", response_model=ImprovedQueryResponse)
+# @app.post("/query", response_model=LegacyQueryResponse)
+@app.post("/api/v1/query", response_model=QueryResponse)
 async def handle_query(request: QueryRequest):
     """Совмещенная логика обработки запросов"""
     start_time = time.time()
@@ -555,16 +552,17 @@ async def handle_query(request: QueryRequest):
     
     # Для нового API добавляем дополнительные поля
     if request.url.path.startswith("/api"):
-        return ImprovedQueryResponse(
+        return QueryResponse(
             **base_response,
             sources=result.get("source_documents", []),
             processing_time=time.time() - start_time
         )
     
-    return LegacyQueryResponse(**base_response)
+    # return LegacyQueryResponse(**base_response)
+    return QueryResponse(**base_response)
 
-@app.post("/topic")
-@app.post("/api/topic", response_model=TopicResponse)
+# @app.post("/topic")
+@app.post("/api/v1/topic", response_model=TopicResponse)
 async def predict_topic_handler(query_: QueryRequest):
     """Совмещенный обработчик тем"""
     try:
