@@ -406,7 +406,8 @@ class GraphEnhancedRetriever:
 class SupportAgent:
     def __init__(self, 
                  kb_path: str = "./vector_store", 
-                 ollama_base_url: str = "http://46.227.68.167:22077/",
+                 #ollama_base_url: str = "http://46.227.68.167:22077/",
+                 ollama_base_url: str = "http://localhost:11434/",
                  model_name: str = "deepseek-r1:7b",
                  use_semantic_chunking: bool = True,
                  use_hybrid_search: bool = True,
