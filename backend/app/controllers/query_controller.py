@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException, status
 
-from app.models.query import QueryDB, QueryInput
+from app.models.query import QueryDB, QueryInput, QueryDBUpdateFromFront
 # Импорт зависимости
 from app.controllers.dependencies import QueryServiceDependency
 
@@ -19,6 +19,30 @@ async def generate_query(query_input: QueryInput, query_service: QueryServiceDep
         print("[INFO] [DATA] - Answer to /generate", created_query)
         # Преобразуем UserInDB в UserPublic для ответа
         return QueryDB.model_validate(created_query)
+    except HTTPException as http_exc:
+        # Перехватываем и перевыбрасываем HTTP исключения из сервиса
+        raise http_exc
+    except Exception as e:
+        # Логгируем и возвращаем 500 для непредвиденных ошибок
+        print(f"Error in registration controller: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An unexpected error occurred during registration."
+        )
+
+
+@router.post("/rate", response_model=QueryDB, status_code=status.HTTP_200_OK)
+async def add_query_mark(query_to_update: QueryDBUpdateFromFront, query_service: QueryServiceDependency):
+    """
+    Получение оценки ответа от юзера
+    """
+
+    try:
+        updated_query = await query_service.add_query_mark(query_to_update)
+        # created_query.id = str(created_query.id)
+        print("[INFO] [DATA] - Answer to /rate", updated_query)
+        # Преобразуем UserInDB в UserPublic для ответа
+        return QueryDB.model_validate(updated_query)
     except HTTPException as http_exc:
         # Перехватываем и перевыбрасываем HTTP исключения из сервиса
         raise http_exc

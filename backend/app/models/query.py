@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, Field
 from typing import Optional, List
 
 
@@ -51,14 +51,25 @@ class QueryDB(QueryInput):
     #                 description="MongoDB document ObjectID")
     response: Optional[ResponseToDB] = None
     category: Optional[str] = None
+    mark: Optional[int] = None
+    query_id: Optional[str] = None
     time: int
     # model_config = ConfigDict(
     #     from_attributes=True
     # )
 
 
-class QueryDBUpdated(QueryDB):
-    mark: int
+# For add mark
+
+
+class QueryDBUpdateFromFront(BaseModel):
+    query_id: str
+    rate: int
+
+
+# class QueryDBToFront(QueryDB):
+#     query_id: str
+
 
 # class Category(BaseModel):
 #     category: str

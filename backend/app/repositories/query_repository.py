@@ -4,12 +4,14 @@ from motor.motor_asyncio import AsyncIOMotorDatabase, AsyncIOMotorCollection
 # from typing import Optional
 
 from app.core.config import ML_URL
-from app.models.query import QueryInput, ResponseFromML, ResponseSplitted, ResponseToDB, QueryDB, QueryToML
+from app.models.query import QueryInput, ResponseFromML, ResponseSplitted, ResponseToDB, QueryDB, QueryToML, QueryDBUpdateFromFront
 from bs4 import BeautifulSoup
 import time
 # import requests
 # import json
 from app.utils.request import make_request
+from fastapi import HTTPException
+from bson import ObjectId
 
 
 class QueryRepository:
@@ -83,7 +85,7 @@ class QueryRepository:
                     conversation_id="",
                     source_documents=[],
                     used_files=[],
-                    response=response_splitted,
+                    response=ResponseSplitted(think="", theme="", answer="")
                 )
                 # raise e
 
@@ -107,7 +109,7 @@ class QueryRepository:
                     category = json_data['category']
                 else:
                     print("[INFO] Ошибка отправки запроса на ML:",
-                          response.status_code, response.text)
+                          status_code, json_data)
             except Exception as e:
                 print(f"ERROR in Request to ML - generate category: {e}")
                 category = ""
@@ -132,9 +134,9 @@ class QueryRepository:
             created_doc = await self.collection.find_one({"_id": insert_result.inserted_id})
             if created_doc:
                 # Создаем модель Pydantic из документа
-                # print(created_doc['_id'])
+                print("[DEBUG] Created in DB", str(created_doc['_id']))
                 created_doc = {
-                    'id': created_doc['_id'],
+                    'query_id': str(created_doc['_id']),
                     'user_id': created_doc['user_id'],
                     'chat_id': created_doc['chat_id'],
                     'query': created_doc['query'],
@@ -154,9 +156,50 @@ class QueryRepository:
         #         f"Data ID'{data}' already exists.")
         except Exception as e:
             # Логирование или дальнейшая обработка ошибок БД
-            print(f"Database error during user creation: {e}")
+            print(f"Database error during query creation: {e}")
             raise  # Перевыброс исключения
 
+    async def add_query_mark(self, query_to_update: QueryDBUpdateFromFront) -> QueryDB:
+        """Обновляем документ в БД."""
+
+        try:
+            doc_to_update = await self.collection.find_one({"_id": ObjectId(query_to_update.query_id)})
+            if doc_to_update is None:
+                raise HTTPException(
+                    status_code=404, detail="Document not found")
+            else:
+                update_result = await self.collection.update_one(
+                    {'_id': ObjectId(query_to_update.query_id)
+                     },
+                    {'$set': {"mark": query_to_update.rate}}
+                )
+                # print(update_result)
+
+                updated_doc = await self.collection.find_one({"_id": ObjectId(query_to_update.query_id)})
+                if update_result.modified_count == 1:
+                    # Создаем модель Pydantic из документа
+                    print("[DEBUG] Updated in DB", updated_doc['_id'])
+                    # created_doc = {
+                    #     'query_id': str(updated_doc['_id']),
+                    #     'user_id': updated_doc['user_id'],
+                    #     'chat_id': updated_doc['chat_id'],
+                    #     'query': updated_doc['query'],
+                    #     'response': updated_doc['response'],
+                    #     'category': updated_doc['category'],
+                    #     'time': updated_doc['time'],
+                    # }
+                    # print(created_doc)
+                    return QueryDB(**updated_doc)
+                else:
+                    # Эта ситуация маловероятна, но стоит обработать
+                    raise RuntimeError(
+                        "Failed to retrieve updated query-document")
+        except Exception as e:
+            # Логирование или дальнейшая обработка ошибок БД
+            print(f"Database error during query update: {e}")
+            raise  # Перевыброс исключения
+
+    #
     # async def get_user_by_username(self, username: str) -> Optional[UserInDB]:
     #     """Ищет пользователя по username."""
     #     user_doc = await self.collection.find_one({"username": username})
