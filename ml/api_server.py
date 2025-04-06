@@ -381,28 +381,25 @@
 # ---------------------# ---------------------# ---------------------# ---------------------# ---------------------# ---------------------# ---------------------
 
 
-
 import os
 import time
 import logging
 from typing import List, Optional, Dict, Any
 from uuid import uuid4
-from fastapi import FastAPI, File, UploadFile, Form, BackgroundTasks, HTTPException
+from fastapi import FastAPI, File, UploadFile, Form, BackgroundTasks, HTTPException, Request
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
-import numpy as np
 import uvicorn
 
 from knowledge_base import KnowledgeBase
 from ai_agent import SupportAgent, correct_text
-from ai_agent import model as embedding_model
 
-# Настройка логгера
+# Конфигурация логгера
 logger = logging.getLogger("support_system")
 logger.setLevel(logging.INFO)
 
-# Конфигурация (сохраняем старые константы для совместимости)
+# Константы
 KNOWLEDGE_DIR = "./knowledge"
 VECTOR_STORE_DIR = "./vector_store"
 ALLOWED_EXTENSIONS = {"txt", "pdf"}
@@ -411,13 +408,14 @@ NEO4J_USERNAME = os.environ.get("NEO4J_USERNAME", "neo4j")
 NEO4J_PASSWORD = os.environ.get("NEO4J_PASSWORD", "password")
 USE_KNOWLEDGE_GRAPH = os.environ.get("USE_KNOWLEDGE_GRAPH", "false").lower() == "true"
 
+# Инициализация приложения
 app = FastAPI(
     title="Система поддержки на базе RAG Fusion",
     docs_url="/docs",
     redoc_url="/redoc"
 )
 
-# CORS настройки (оставляем как было)
+# CORS middleware
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -426,50 +424,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Инициализация компонентов (сохраняем оригинальные имена переменных)
-kb = KnowledgeBase()
-agent = SupportAgent(
-    kb_path=VECTOR_STORE_DIR,
-    use_knowledge_graph=USE_KNOWLEDGE_GRAPH,
-    neo4j_uri=NEO4J_URI,
-    neo4j_username=NEO4J_USERNAME,
-    neo4j_password=NEO4J_PASSWORD
-)
-
-# Состояния (сохраняем оригинальную структуру + новую)
-rebuild_status = {
-    "in_progress": False,
-    "last_completed": None,
-    "files_processed": 0,
-    "error": None
-}
-
-conversations = {}  # Оригинальная структура для совместимости
-
-# Дополнительные улучшения
-system_state = {
-    "rebuild": rebuild_status,
-    "start_time": time.time()
-}
-
-def initialize_vector_store():
-    if os.path.exists(VECTOR_STORE_DIR):
-        try:
-            kb.load_vector_store(VECTOR_STORE_DIR)
-        except Exception as e:
-            logger.error(f"Error loading vector store: {str(e)}")
-            raise
-
-initialize_vector_store()
-
-# Модели данных (сохраняем старые + добавляем новые)
-
+# Модели данных
 class GenerateRequest(BaseModel):
     user_id: str = Field(..., description="Уникальный идентификатор пользователя")
     chat_id: int = Field(..., description="Идентификатор чата")
     query: str = Field(..., description="Текст запроса пользователя")
     reset_conversation: bool = Field(False, description="Сбросить историю диалога")
-
 
 class QueryRequest(BaseModel):
     query: str
@@ -481,168 +441,124 @@ class QueryResponse(BaseModel):
     human_handoff: bool = False
     conversation_id: str
     sources: List[Dict] = []
+    used_files: List[str] = []
     processing_time: float
     error: Optional[str] = None
 
 class TopicResponse(BaseModel):
     category: str
-    confidence: Optional[float] = None  # Новое поле
+    confidence: Optional[float] = None
 
-# Эндпоинты (сохраняем оригинальные + добавляем новые)
-# @app.post("/upload", response_class=JSONResponse)
-@app.post("/api/v1/upload", response_class=JSONResponse)
-async def upload_files(
-    files: List[UploadFile] = File(...),
-    rebuild_index: bool = Form(True),
-    background_tasks: BackgroundTasks = None
-):
-    """Оригинальная логика с улучшениями"""
-    if rebuild_status["in_progress"]:
-        return JSONResponse(
-            content={"success": False, "message": "Update in progress"},
-            status_code=409
-        )
+# Инициализация сервисов
+def initialize_services():
+    kb = KnowledgeBase()
     
-    # ... (остальная логика из оригинального кода)
-    
-    return JSONResponse(
-        content={
-            "success": True,
-            "uploaded_files": uploaded_files,
-            "errors": errors,
-            "rebuild_status": "started" if rebuild_index else "skipped"
-        }
+    if os.path.exists(VECTOR_STORE_DIR):
+        try:
+            kb.load_vector_store(VECTOR_STORE_DIR)
+        except Exception as e:
+            logger.error(f"Error loading vector store: {str(e)}")
+            raise
+
+    agent = SupportAgent(
+        kb_path=VECTOR_STORE_DIR,
+        use_knowledge_graph=USE_KNOWLEDGE_GRAPH,
+        neo4j_uri=NEO4J_URI,
+        neo4j_username=NEO4J_USERNAME,
+        neo4j_password=NEO4J_PASSWORD
     )
 
-# @app.post("/query", response_model=LegacyQueryResponse)
-@app.post("/api/v1/query", response_model=QueryResponse)
-async def handle_query(request: QueryRequest):
-    """Совмещенная логика обработки запросов"""
-    start_time = time.time()
-    
-    # Оригинальная логика
-    conversation_id = request.conversation_id or str(uuid4())
-    
-    if request.reset_conversation:
-        conversations.pop(conversation_id, None)
-        system_state["conversations"].pop(conversation_id, None)
-    
-    # Совмещение старой и новой логики
-    if conversation_id not in conversations:
-        conversations[conversation_id] = agent.memory
-        system_state["conversations"][conversation_id] = agent.memory
-    
-    agent.memory = conversations[conversation_id]
-    
-    try:
-        result = agent.process_message(correct_text(request.query))
-    except Exception as e:
-        logger.error(f"Query error: {str(e)}")
-        raise HTTPException(500, "Processing error")
-    
-    # Сохранение состояния
-    conversations[conversation_id] = agent.memory
-    system_state["conversations"][conversation_id] = agent.memory
-    
-    # Формирование совместимого ответа
-    used_files = list(set(
+    return kb, agent
+
+kb, agent = initialize_services()
+
+# Состояния системы
+system_state = {
+    "rebuild": {
+        "in_progress": False,
+        "last_completed": None,
+        "files_processed": 0,
+        "error": None
+    },
+    "conversations": {},
+    "start_time": time.time()
+}
+
+# Общие функции
+def get_conversation_id(request: GenerateRequest) -> str:
+    return f"{request.user_id}-{request.chat_id}"
+
+def process_documents(result: Dict) -> List[str]:
+    return list(set(
         os.path.basename(doc.get("source", "")) 
         for doc in result.get("source_documents", [])
     ))
-    
-    base_response = {
-        "response": result["response"],
-        "human_handoff": result.get("human_handoff", False),
-        "conversation_id": conversation_id,
-        "source_documents": result.get("source_documents", []),
-        "used_files": used_files
-    }
-    
-    # Для нового API добавляем дополнительные поля
-    if request.url.path.startswith("/api"):
-        return QueryResponse(
-            **base_response,
-            sources=result.get("source_documents", []),
-            processing_time=time.time() - start_time
-        )
-    
-    # return LegacyQueryResponse(**base_response)
-    return QueryResponse(**base_response)
 
-# @app.post("/topic")
-@app.post("/api/v1/topic", response_model=TopicResponse)
-async def predict_topic_handler(query_: QueryRequest):
-    """Совмещенный обработчик тем"""
-    try:
-        topic, confidence = predict_topic(query_.query)
-        return {
-            "category": topic,
-            "confidence": confidence  # Добавляем только для нового API
-        } if "api" in request.url.path else {"category": topic}
-    except Exception as e:
-        logger.error(f"Topic error: {str(e)}")
-        raise HTTPException(500, "Topic prediction error")
-
-@app.get("/rebuild_status")
-async def get_rebuild_status():
-    """Оригинальный эндпоинт статуса"""
-    return JSONResponse(content=rebuild_status)
-
-@app.get("/api/status")
-async def system_status():
-    """Новый эндпоинт статуса"""
-    return {
-        "uptime": time.time() - system_state["start_time"],
-        "conversations": len(conversations),
-        **system_state["rebuild"]
-    }
-
-# Добавляем новый эндпоинт
+# Эндпоинты
 @app.post("/api/v1/query/generate", response_model=QueryResponse)
 async def generate_query(request: GenerateRequest):
-    """Обработчик для нового формата запросов с user_id и chat_id"""
+    """Обработка запросов нового формата"""
     start_time = time.time()
-    
-    # Генерируем conversation_id на основе user_id и chat_id
-    conversation_id = f"{request.user_id}-{request.chat_id}"
+    conversation_id = get_conversation_id(request)
     
     try:
-        # Используем существующую логику обработки
-        agent.memory = conversations.get(conversation_id, agent.memory)
-        
+        # Управление состоянием беседы
         if request.reset_conversation:
-            conversations.pop(conversation_id, None)
             system_state["conversations"].pop(conversation_id, None)
             agent.reset_memory()
-
+        
+        if conversation_id not in system_state["conversations"]:
+            system_state["conversations"][conversation_id] = agent.memory
+        
+        agent.memory = system_state["conversations"][conversation_id]
+        
+        # Обработка запроса
         result = agent.process_message(correct_text(request.query))
         
-        # Сохраняем обновленное состояние
-        conversations[conversation_id] = agent.memory
+        # Обновление состояния
         system_state["conversations"][conversation_id] = agent.memory
         
-        # Формируем ответ
-        used_files = list(set(
-            os.path.basename(doc.get("source", "")) 
-            for doc in result.get("source_documents", [])
-        ))
-
         return QueryResponse(
             response=result["response"],
             human_handoff=result.get("human_handoff", False),
             conversation_id=conversation_id,
             sources=result.get("source_documents", []),
-            processing_time=time.time() - start_time,
-            used_files=used_files
+            used_files=process_documents(result),
+            processing_time=time.time() - start_time
         )
-
+        
     except Exception as e:
-        logger.error(f"Generate query error: {str(e)}", exc_info=True)
-        raise HTTPException(
-            status_code=500,
-            detail=f"Processing error: {str(e)}"
+        logger.error(f"Query processing error: {str(e)}", exc_info=True)
+        return QueryResponse(
+            response="Произошла ошибка при обработке запроса",
+            human_handoff=True,
+            conversation_id=conversation_id,
+            sources=[],
+            used_files=[],
+            processing_time=time.time() - start_time,
+            error=str(e)
         )
 
+@app.post("/api/v1/topic", response_model=TopicResponse)
+async def predict_topic_handler(request: Request, query_: QueryRequest):
+    """Определение темы запроса"""
+    try:
+        topic, confidence = predict_topic(query_.query)
+        return TopicResponse(
+            category=topic,
+            confidence=confidence if "api/v1" in request.url.path else None
+        )
+    except Exception as e:
+        logger.error(f"Topic prediction error: {str(e)}")
+        raise HTTPException(500, detail="Ошибка определения темы")
+
+@app.get("/api/status")
+async def system_status():
+    return {
+        "uptime": time.time() - system_state["start_time"],
+        "conversations": len(system_state["conversations"]),
+        "rebuild": system_state["rebuild"]
+    }
 
 if __name__ == "__main__":
     uvicorn.run(
