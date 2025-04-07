@@ -4,7 +4,8 @@ from motor.motor_asyncio import AsyncIOMotorDatabase, AsyncIOMotorCollection
 # from typing import Optional
 
 from app.core.config import ML_URL
-from app.models.query import QueryInput, ResponseFromML, ResponseSplitted, ResponseToDB, QueryDB, QueryToML, QueryDBUpdateFromFront
+from app.models.query import QueryInput, ResponseFromML, ResponseSplitted, ResponseToDB, QueryDB, \
+    QueryToML, QueryDBUpdateFromFront, Chart1, Bar, Percent, QueryTable, QueriesTable
 from bs4 import BeautifulSoup
 import time
 # import requests
@@ -45,6 +46,18 @@ class QueryRepository:
                       (stop_request-start_request), "секунд")
 
                 if status_code == 200:
+                    for file_id in range(len(json_data['used_files'])):
+                        if json_data['used_files'][file_id] == 'Инструкция_по_работе_с_Порталом_для_заказчика.pdf':
+                            json_data['used_files'][file_id] = 'Instrukciya_po_rabote_s_Portalom_dlya_zakazchika.pdf'
+                        if json_data['used_files'][file_id] == 'Инструкция_по_работе_с_Порталом_для_поставщика.pdf':
+                            json_data['used_files'][file_id] = 'Instrukciya_po_rabote_s_Portalom_dlya_postavshchika.pdf'
+                        if json_data['used_files'][file_id] == 'Инструкция_по_электронному_актированию.pdf':
+                            json_data['used_files'][file_id] = 'Instrukciya_po_elektronnomu_aktirovaniyu.pdf'
+                        if json_data['used_files'][file_id] == 'Регламент_информационного_взаимодействия.pdf':
+                            json_data['used_files'][file_id] = 'Reglament_informacionnogo_vzaimodejstviya.pdf'
+                        if json_data['used_files'][file_id] == 'Статьи.pdf':
+                            json_data['used_files'][file_id] = 'Stati.pdf'
+
                     # json_data = response.json()
                     print(
                         "[INFO] Запрос на ML успешно отправлен и получен ответ (generate answer)")
@@ -56,13 +69,16 @@ class QueryRepository:
 
                     # print(soup.find('think'))
 
-                    think, theme, answer = "", "", ""
+                    think, theme, answer = "", "", html_string
                     if soup.find('think') is not None:
                         think = soup.find('think').text
                     if soup.find('topic') is not None:
                         theme = soup.find('topic').text
+
                     if soup.find('answer') is not None:
                         answer = soup.find('answer').text
+                    else:
+                        answer = html_string
 
                     response_splitted = ResponseSplitted(
                         think=think, theme=theme, answer=answer)
@@ -197,6 +213,79 @@ class QueryRepository:
         except Exception as e:
             # Логирование или дальнейшая обработка ошибок БД
             print(f"Database error during query update: {e}")
+            raise  # Перевыброс исключения
+
+    async def analitycs(self) -> Chart1:
+        """Аналитика."""
+
+        try:
+            # Chart 1
+            cursor = self.collection.find()  # Возвращает курсор
+            # documents = []
+            counter = {}
+            summator = {}
+            all_counter = 0
+            async for document in cursor:  # Асинхронная итерация по курсору
+                # documents.append(document['mark'])
+                if document['mark'] is not None and document['category'] != "":
+                    category = document['category']
+                    # print(category)
+                    if category in counter:
+                        counter[category] += 1
+                    else:
+                        counter[category] = 1
+                    if category in summator:
+                        summator[category] += int(document['mark'])
+                    else:
+                        summator[category] = int(document['mark'])
+                    all_counter += 1
+            statistics = {}
+            for topic in summator:
+                statistics[topic] = summator[topic] / counter[topic]
+
+            bars = []
+            i = 0
+            for category in statistics:
+                i += 1
+                bar = Bar(x=i, y=int(statistics[category]), label=category)
+                bars += [bar]
+
+            # Chart 2
+            statistics1 = {}
+            for topic in counter:
+                statistics1[topic] = int((counter[topic] / all_counter) * 100)
+
+            percents = []
+            for category in statistics1:
+                percent = Percent(x=category, y=statistics1[category])
+                percents += [percent]
+            chart = Chart1(bars=bars, percents=percents)
+
+            return chart
+
+        except Exception as e:
+            # Логирование или дальнейшая обработка ошибок БД
+            print(f"Database error during query statistics: {e}")
+            raise  # Перевыброс исключения
+
+    async def all_queries(self) -> QueriesTable:
+        """all_queries."""
+
+        try:
+            # Chart 1
+            cursor = self.collection.find()  # Возвращает курсор
+            documents = []
+            async for document in cursor:  # Асинхронная итерация по курсору
+                # documents.append(document['mark'])
+                if document['mark'] is not None and document['category'] != "":
+                    documents += [QueryTable(id=str(document['_id']),
+                                             name=document['query'][:20], date=str(document['time']), type=document['category'], request=document['query'], answer=document['response']['response']['answer'], source=document['response']['used_files'], mark=str(document['mark']))]
+
+            return QueriesTable(data=documents)
+
+        except Exception as e:
+            # Логирование или дальнейшая обработка ошибок БД
+            print(f"Database error during query all_queries: {e}")
             raise  # Перевыброс исключения
 
     #

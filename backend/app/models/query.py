@@ -67,9 +67,39 @@ class QueryDBUpdateFromFront(BaseModel):
     rate: int
 
 
-# class QueryDBToFront(QueryDB):
-#     query_id: str
+# Analitycs
+class Bar(BaseModel):
+    x: int
+    y: int
+    label: str
 
 
-# class Category(BaseModel):
-#     category: str
+class Percent(BaseModel):
+    x: str
+    y: int
+
+
+class Chart1(BaseModel):
+    bars: List[Bar]
+    percents: List[Percent]
+
+
+class QueryTable(BaseModel):
+    id: str
+    name: str
+    date: str
+    type: str
+    request: str
+    answer: str
+    source: List[str]
+    mark: str
+
+
+class QueriesTable(BaseModel):
+    data: List[QueryTable]
+
+    # class QueryDBToFront(QueryDB):
+    #     query_id: str
+
+    # class Category(BaseModel):
+    #     category: str

@@ -2,7 +2,7 @@ from fastapi import HTTPException, status
 # from typing import Optional
 
 from app.repositories.query_repository import QueryRepository
-from app.models.query import QueryDB, QueryInput, QueryDBUpdateFromFront
+from app.models.query import QueryDB, QueryInput, QueryDBUpdateFromFront, Chart1, QueriesTable
 
 
 class QueryService:
@@ -49,4 +49,44 @@ class QueryService:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="An internal error occurred during update.",
+            )
+
+    async def analitycs(self) -> Chart1:
+        """Редактирует оценку ответа на запрос"""
+
+        # Обновление запроса в DB
+        try:
+            analitycs = await self.query_repo.analitycs()
+            return analitycs
+        except ValueError as e:  # Ловим ошибку дубликата из репозитория
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=str(e),  # Передаем сообщение об ошибке
+            )
+        except Exception as e:
+            # Логирование и общая ошибка сервера
+            print(f"Unexpected error during query analitycs: {e}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="An internal error occurred during analitycs.",
+            )
+
+    async def all_queries(self) -> QueriesTable:
+        """Редактирует оценку ответа на запрос"""
+
+        # Обновление запроса в DB
+        try:
+            all_queries = await self.query_repo.all_queries()
+            return all_queries
+        except ValueError as e:  # Ловим ошибку дубликата из репозитория
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=str(e),  # Передаем сообщение об ошибке
+            )
+        except Exception as e:
+            # Логирование и общая ошибка сервера
+            print(f"Unexpected error during query analitycs: {e}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="An internal error occurred during analitycs.",
             )

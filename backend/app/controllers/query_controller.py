@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException, status
 
-from app.models.query import QueryDB, QueryInput, QueryDBUpdateFromFront
+from app.models.query import QueryDB, QueryInput, QueryDBUpdateFromFront, Chart1, QueriesTable
 # Импорт зависимости
 from app.controllers.dependencies import QueryServiceDependency
 
@@ -24,10 +24,10 @@ async def generate_query(query_input: QueryInput, query_service: QueryServiceDep
         raise http_exc
     except Exception as e:
         # Логгируем и возвращаем 500 для непредвиденных ошибок
-        print(f"Error in registration controller: {e}")
+        print(f"Error in generate controller: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="An unexpected error occurred during registration."
+            detail="An unexpected error occurred during generate."
         )
 
 
@@ -48,10 +48,54 @@ async def add_query_mark(query_to_update: QueryDBUpdateFromFront, query_service:
         raise http_exc
     except Exception as e:
         # Логгируем и возвращаем 500 для непредвиденных ошибок
-        print(f"Error in registration controller: {e}")
+        print(f"Error in rate controller: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="An unexpected error occurred during registration."
+            detail="An unexpected error occurred during rate."
+        )
+
+
+@router.get("/analitycs", response_model=Chart1, status_code=status.HTTP_200_OK)
+async def analitycs(query_service: QueryServiceDependency):
+    """
+    Получение оценки ответа от юзера
+    """
+
+    try:
+        analitycs = await query_service.analitycs()
+        print("[INFO] [DATA] - Answer to /analitycs", analitycs)
+        return Chart1.model_validate(analitycs)
+    except HTTPException as http_exc:
+        # Перехватываем и перевыбрасываем HTTP исключения из сервиса
+        raise http_exc
+    except Exception as e:
+        # Логгируем и возвращаем 500 для непредвиденных ошибок
+        print(f"Error in analitycs controller: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An unexpected error occurred during analitycs."
+        )
+
+
+@router.get("/all", response_model=QueriesTable, status_code=status.HTTP_200_OK)
+async def all_queries(query_service: QueryServiceDependency):
+    """
+    Получение оценки ответа от юзера
+    """
+
+    try:
+        all_queries = await query_service.all_queries()
+        print("[INFO] [DATA] - Answer to /all", all_queries)
+        return QueriesTable.model_validate(all_queries)
+    except HTTPException as http_exc:
+        # Перехватываем и перевыбрасываем HTTP исключения из сервиса
+        raise http_exc
+    except Exception as e:
+        # Логгируем и возвращаем 500 для непредвиденных ошибок
+        print(f"Error in analitycs controller: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An unexpected error occurred during analitycs."
         )
 
 
